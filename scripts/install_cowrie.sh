@@ -7,11 +7,13 @@ sudo apt-get install -y git python3-venv python3-dev libssl-dev libffi-dev \
   build-essential libpython3-dev python3-minimal authbind virtualenv
 
 # ── 2. Cowrie user (never run as root) ───────────────────────────────────────
-sudo adduser --disabled-password --gecos "" cowrie
+id -u cowrie &>/dev/null || sudo adduser --disabled-password --gecos "" cowrie
 
 # ── 3. Clone Cowrie ───────────────────────────────────────────────────────────
 sudo su - cowrie -c "
-  git clone https://github.com/cowrie/cowrie.git /home/cowrie/cowrie
+  if [ ! -d '/home/cowrie/cowrie' ]; then
+    git clone https://github.com/cowrie/cowrie.git /home/cowrie/cowrie
+  fi
   cd /home/cowrie/cowrie
   python3 -m venv cowrie-env
   source cowrie-env/bin/activate
@@ -22,7 +24,7 @@ sudo su - cowrie -c "
 # ── 4. Configure Cowrie ───────────────────────────────────────────────────────
 sudo su - cowrie -c "
   cd /home/cowrie/cowrie
-  cp etc/cowrie.cfg.dist etc/cowrie.cfg
+  cp src/cowrie/data/etc/cowrie.cfg.dist etc/cowrie.cfg
 "
 
 # Edit cowrie.cfg — key settings:
@@ -46,8 +48,8 @@ After=network.target
 Type=simple
 User=cowrie
 WorkingDirectory=/home/cowrie/cowrie
-ExecStart=/home/cowrie/cowrie/cowrie-env/bin/python bin/cowrie start -n
-ExecStop=/home/cowrie/cowrie/cowrie-env/bin/python bin/cowrie stop
+Environment=PYTHONPATH=/home/cowrie/cowrie/src
+ExecStart=/home/cowrie/cowrie/cowrie-env/bin/twistd --umask 0022 --nodaemon --pidfile= -l - cowrie
 Restart=always
 RestartSec=5
 
