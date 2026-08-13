@@ -1,0 +1,3 @@
+aws_region = "us-east-1"
+your_ip    = "212.104.229.209/32"   # Replace with your real IP
+key_name   = "my-keypair-name"
