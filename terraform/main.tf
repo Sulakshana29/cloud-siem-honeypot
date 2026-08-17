@@ -89,6 +89,42 @@ resource "aws_security_group" "honeypot" {
   tags = { Name = "honeypot-sg" }
 }
 
+# ─── IAM Role for CloudWatch ──────────────────────────────────────────────────
+
+resource "aws_iam_role" "honeypot_role" {
+  name = "honeypot_cloudwatch_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
+  role       = aws_iam_role.honeypot_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_instance_profile" "honeypot_profile" {
+  name = "honeypot_instance_profile"
+  role = aws_iam_role.honeypot_role.name
+}
+
+# ─── CloudWatch Log Group ─────────────────────────────────────────────────────
+
+resource "aws_cloudwatch_log_group" "cowrie_logs" {
+  name              = "/honeypot/cowrie"
+  retention_in_days = 30
+}
+
 # ─── EC2 Instance ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "honeypot" {
@@ -97,6 +133,7 @@ resource "aws_instance" "honeypot" {
   subnet_id              = aws_subnet.honeypot_public.id
   vpc_security_group_ids = [aws_security_group.honeypot.id]
   key_name               = var.key_name
+  iam_instance_profile   = aws_iam_instance_profile.honeypot_profile.name
 
   root_block_device {
     volume_size = 20
