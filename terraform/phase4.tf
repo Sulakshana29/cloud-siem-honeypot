@@ -113,3 +113,95 @@ resource "aws_glue_catalog_table" "cowrie_logs" {
     }
   }
 }
+
+# ─── Athena Workgroup ─────────────────────────────────────────────────────────
+# Without a workgroup, Athena has nowhere to write query results and will fail.
+resource "aws_athena_workgroup" "siem" {
+  name        = "cloud-siem-workgroup"
+  description = "Workgroup for Cloud SIEM honeypot threat hunting queries"
+
+  configuration {
+    enforce_workgroup_configuration    = true
+    publish_cloudwatch_metrics_enabled = true
+
+    result_configuration {
+      output_location = "s3://${aws_s3_bucket.datalake.id}/athena-results/"
+
+      encryption_configuration {
+        encryption_option = "SSE_S3"
+      }
+    }
+  }
+
+  tags = {
+    Project = "cloud-siem-honeypot"
+  }
+}
+
+# ─── IAM Policy — Athena + Glue + S3 Read Access ─────────────────────────────
+# Attach to any analyst IAM user/role that needs to run threat hunting queries.
+resource "aws_iam_policy" "athena_analyst" {
+  name        = "honeypot-athena-analyst-policy"
+  description = "Allow running Athena queries against the SIEM data lake"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AthenaQueryAccess"
+        Effect = "Allow"
+        Action = [
+          "athena:StartQueryExecution",
+          "athena:GetQueryExecution",
+          "athena:GetQueryResults",
+          "athena:StopQueryExecution",
+          "athena:ListQueryExecutions",
+          "athena:GetWorkGroup"
+        ]
+        Resource = aws_athena_workgroup.siem.arn
+      },
+      {
+        Sid    = "GlueCatalogRead"
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetTable",
+          "glue:GetPartitions",
+          "glue:GetTables"
+        ]
+        Resource = [
+          "arn:aws:glue:${var.aws_region}:*:catalog",
+          aws_glue_catalog_database.siem_db.arn,
+          aws_glue_catalog_table.cowrie_logs.arn
+        ]
+      },
+      {
+        Sid    = "S3DataLakeRead"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.datalake.arn,
+          "${aws_s3_bucket.datalake.arn}/*"
+        ]
+      },
+      {
+        Sid    = "S3AthenaResultsWrite"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject"
+        ]
+        Resource = "${aws_s3_bucket.datalake.arn}/athena-results/*"
+      }
+    ]
+  })
+}
+
+# ─── Outputs ──────────────────────────────────────────────────────────────────
+output "athena_workgroup_name" {
+  value       = aws_athena_workgroup.siem.name
+  description = "Use this workgroup name when running queries in the Athena console"
+}
