@@ -69,6 +69,34 @@ Internet (Attackers)
 
 ---
 
+## 📸 Screenshots
+
+### 🍯 Cowrie Live — Real Attackers Captured
+![Cowrie live logs](screenshots/cloudwatch%20raw%20logs.png)
+
+### ☁️ CloudWatch — Raw Logs Streamed Off-Box in Real Time
+![CloudWatch log stream](screenshots/Screenshot%202026-09-17%20162716.png)
+
+### ⚡ CloudWatch Agent — Shipping Logs to AWS
+![CloudWatch Agent](screenshots/Screenshot%202026-09-17%20162750.png)
+
+### 🪣 S3 Data Lake — Hive-Partitioned Normalized Events
+![S3 data lake](screenshots/s3%20data.png)
+
+### 🔍 Athena — Threat Hunting Query
+![Athena query](screenshots/Athena_query.png)
+
+### 📊 Athena — Real Attacker Data Results
+![Athena query results](screenshots/Query_results.png)
+
+### 🏗️ Terraform — Full Infrastructure as Code
+![Terraform state list](screenshots/terraform%20state%20list.png)
+
+### 🛡️ IAM — Least Privilege (CloudWatch Write-Only)
+![IAM CloudWatch Agent Policy](screenshots/CloudWatchAgentPolicy.png)
+
+---
+
 ## 📋 Phase Status
 
 | Phase | What | Status |

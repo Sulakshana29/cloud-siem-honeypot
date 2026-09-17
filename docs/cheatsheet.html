@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud SIEM Honeypot — Command Cheatsheet</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-base:        #0a0e1a;
+      --bg-surface:     #111827;
+      --bg-card:        #161d2e;
+      --bg-code:        #0d1117;
+      --border:         rgba(255,255,255,0.07);
+      --border-bright:  rgba(255,255,255,0.14);
+      --text-primary:   #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted:     #475569;
+      --accent-blue:    #3b82f6;
+      --accent-cyan:    #06b6d4;
+      --accent-purple:  #8b5cf6;
+      --accent-green:   #10b981;
+      --accent-orange:  #f59e0b;
+      --accent-red:     #ef4444;
+      --accent-pink:    #ec4899;
+      --glow-blue:      rgba(59,130,246,0.15);
+      --glow-purple:    rgba(139,92,246,0.15);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background grid ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── Ambient blobs ── */
+    .blob { position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0; }
+    .blob-1 { width: 600px; height: 600px; background: rgba(59,130,246,0.07); top: -200px; left: -200px; }
+    .blob-2 { width: 500px; height: 500px; background: rgba(139,92,246,0.07); bottom: -100px; right: -100px; }
+    .blob-3 { width: 400px; height: 400px; background: rgba(6,182,212,0.05); top: 40%; left: 50%; transform: translateX(-50%); }
+
+    /* ── Layout ── */
+    .wrapper { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .header-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
+      color: var(--accent-cyan);
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .header-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(1.4); } }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 50%, #60a5fa 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Tab nav ── */
+    .tab-nav {
+      display: flex; gap: 4px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 6px;
+      margin-bottom: 32px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tab-nav::-webkit-scrollbar { display: none; }
+
+    .tab-btn {
+      flex: 1; min-width: max-content;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: none; cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 600;
+      color: var(--text-secondary);
+      background: transparent;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+    .tab-btn.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: 0 0 0 1px var(--border-bright), 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .tab-icon { font-size: 16px; }
+
+    /* ── Tab panels ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Section heading ── */
+    .section-label {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Command card ── */
+    .cmd-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .cmd-card:hover {
+      border-color: var(--border-bright);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+
+    .cmd-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px;
+      gap: 12px;
+    }
+    .cmd-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--text-primary);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cmd-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      padding: 2px 8px; border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .badge-tf   { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .badge-aws  { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+    .badge-bash { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .badge-sql  { background: rgba(6,182,212,0.15);  color: #22d3ee; border: 1px solid rgba(6,182,212,0.3); }
+    .badge-demo { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+    .cmd-desc {
+      padding: 0 16px 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ── Code block ── */
+    .code-wrap {
+      position: relative;
+      background: var(--bg-code);
+      border-top: 1px solid var(--border);
+    }
+    .code-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-dots { display: flex; gap: 6px; }
+    .code-dots span {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .code-dots span:nth-child(1) { background: #ff5f57; }
+    .code-dots span:nth-child(2) { background: #febc2e; }
+    .code-dots span:nth-child(3) { background: #28c840; }
+    .code-lang {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.05em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .copy-btn {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px; font-weight: 600;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+    .copy-btn.copied { background: rgba(16,185,129,0.15); color: #34d399; border-color: rgba(16,185,129,0.3); }
+
+    pre {
+      padding: 16px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: #cdd9e5;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+    }
+    pre::-webkit-scrollbar { height: 4px; }
+    pre::-webkit-scrollbar-track { background: transparent; }
+    pre::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    /* syntax tokens */
+    .t-comment { color: #5c6e82; }
+    .t-cmd     { color: #79c0ff; }
+    .t-flag    { color: #d2a8ff; }
+    .t-string  { color: #a5d6ff; }
+    .t-value   { color: #ffa657; }
+    .t-kw      { color: #ff7b72; }
+    .t-fn      { color: #e3b341; }
+    .t-sym     { color: #56d364; }
+    .t-pipe    { color: #58a6ff; }
+
+    /* ── Hero demo box ── */
+    .demo-box {
+      background: linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(139,92,246,0.08) 100%);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .demo-box-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 20px;
+    }
+    .demo-box-header h2 {
+      font-size: 18px; font-weight: 700;
+      color: var(--text-primary);
+    }
+    .demo-number {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--accent-red), var(--accent-purple));
+      border-radius: 8px;
+      font-size: 13px; font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .stat-card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+    .stat-num {
+      font-size: 28px; font-weight: 800;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-label {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding-top: 48px;
+      border-top: 1px solid var(--border);
+      margin-top: 48px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .footer strong { color: var(--text-secondary); }
+
+    /* Print */
+    @media print {
+      body { background: #0a0e1a !important; -webkit-print-color-adjust: exact; }
+      .blob, body::before { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-badge"><span class="dot"></span>Live Pipeline Active</div>
+    <h1>Cloud SIEM Honeypot<br/>Command Cheatsheet</h1>
+    <p class="subtitle">All commands to operate, verify, and demo your AWS threat intelligence pipeline in interviews.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card"><div class="stat-num">4</div><div class="stat-label">Phases Built</div></div>
+    <div class="stat-card"><div class="stat-num">8+</div><div class="stat-label">AWS Services</div></div>
+    <div class="stat-card"><div class="stat-num">12</div><div class="stat-label">Athena Queries</div></div>
+    <div class="stat-card"><div class="stat-num">5</div><div class="stat-label">Demo Commands</div></div>
+    <div class="stat-card"><div class="stat-num">∞</div><div class="stat-label">Attackers Logged</div></div>
+  </div>
+
+  <!-- Tab Nav -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('demo')"><span class="tab-icon">🎯</span> Live Demo</button>
+    <button class="tab-btn" onclick="switchTab('terraform')"><span class="tab-icon">🏗️</span> Terraform</button>
+    <button class="tab-btn" onclick="switchTab('aws')"><span class="tab-icon">☁️</span> AWS CLI</button>
+    <button class="tab-btn" onclick="switchTab('linux')"><span class="tab-icon">🐧</span> EC2 / Linux</button>
+    <button class="tab-btn" onclick="switchTab('athena')"><span class="tab-icon">🔍</span> Athena SQL</button>
+  </div>
+
+  <!-- ═══════════════ TAB: LIVE DEMO ═══════════════ -->
+  <div id="tab-demo" class="tab-panel active">
+    <div class="demo-box">
+      <div class="demo-box-header">
+        <span style="font-size:24px">🎯</span>
+        <h2>5-Command Live Demo Sequence</h2>
+      </div>
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:20px;">
+        When a recruiter says <em>"show me something"</em> — run these 5 commands in order. They tell the complete story in under 2 minutes.
+      </p>
+
+      <!-- Demo 1 -->
+      <div class="cmd-card" style="border-color: rgba(239,68,68,0.2);">
+        <div class="cmd-header">
+          <div class="cmd-title"><span class="demo-number">1</span> Infrastructure is Code</div>
+          <span class="cmd-badge badge-tf">Terraform</span>
+        </div>
+        <div class="cmd-desc">Show all AWS resources managed by Terraform — proves nothing was clicked manually.</div>
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">powershell</span>
+            <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+          </div>
+          <pre><code><span class="t-comment"># From: d:\Projects\cloud-siem-honeypot\terraform</span>
+<span class="t-cmd">terraform</span> <span class="t-value">state list</span></code></pre>
+        </div>
+      </div>
+
+      <!-- Demo 2 -->
+      <div class="cmd-card" style="border-color: rgba(239,68,68,0.2);">
+        <div class="cmd-header">
+          <div class="cmd-title"><span class="demo-number">2</span> Honeypot is Live on the Internet</div>
+          <span class="cmd-badge badge-aws">AWS CLI</span>
+        </div>
+        <div class="cmd-desc">Shows the EC2 instance is running and exposed — attracting real attackers right now.</div>
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">powershell</span>
+            <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+          </div>
+          <pre><code><span class="t-cmd">aws</span> <span class="t-value">ec2 describe-instances</span> <span class="t-flag">`
+  --filters</span> <span class="t-string">"Name=tag:Name,Values=cowrie-honeypot"</span> <span class="t-flag">`
+  --query</span> <span class="t-string">"Reservations[*].Instances[*].{IP:PublicIpAddress,State:State.Name}"</span></code></pre>
+        </div>
+      </div>
+
+      <!-- Demo 3 -->
+      <div class="cmd-card" style="border-color: rgba(239,68,68,0.2);">
+        <div class="cmd-header">
+          <div class="cmd-title"><span class="demo-number">3</span> Logs Flowing Off-Box in Real Time</div>
+          <span class="cmd-badge badge-aws">AWS CLI</span>
+        </div>
+        <div class="cmd-desc">Proves attacker data is being streamed to CloudWatch — tamper-resistant, off-server storage.</div>
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">powershell</span>
+            <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+          </div>
+          <pre><code><span class="t-cmd">aws</span> <span class="t-value">logs describe-log-streams</span> <span class="t-flag">`
+  --log-group-name</span> <span class="t-string">"/honeypot/cowrie"</span> <span class="t-flag">`
+  --order-by</span> <span class="t-value">LastEventTime</span> <span class="t-flag">--descending</span></code></pre>
+        </div>
+      </div>
+
+      <!-- Demo 4 -->
+      <div class="cmd-card" style="border-color: rgba(239,68,68,0.2);">
+        <div class="cmd-header">
+          <div class="cmd-title"><span class="demo-number">4</span> Normalized Data Lake Has Attacker Records</div>
+          <span class="cmd-badge badge-aws">AWS CLI</span>
+        </div>
+        <div class="cmd-desc">Proves Lambda fired and wrote partitioned JSON to S3 — the serverless ETL pipeline works.</div>
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">powershell</span>
+            <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+          </div>
+          <pre><code><span class="t-cmd">aws</span> <span class="t-value">s3 ls</span> <span class="t-string">s3://cloud-siem-datalake-eager-cricket/logs/</span> <span class="t-flag">--recursive</span></code></pre>
+        </div>
+      </div>
+
+      <!-- Demo 5 -->
+      <div class="cmd-card" style="border-color: rgba(239,68,68,0.2);">
+        <div class="cmd-header">
+          <div class="cmd-title"><span class="demo-number">5</span> Read a Real Normalized Attacker Event</div>
+          <span class="cmd-badge badge-aws">AWS CLI</span>
+        </div>
+        <div class="cmd-desc">Show what a normalized log event looks like — the structured schema your Lambda produces.</div>
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span></span><span></span><span></span></div>
+            <span class="code-lang">powershell</span>
+            <button class="copy-btn" onclick="copyCode(this)">📋 Copy</button>
+          </div>
+          <pre><code><span class="t-cmd">aws</span> <span class="t-value">s3 cp</span> <span class="t-string">s3://cloud-siem-datalake-eager-cricket/logs/year=2026/month=08/day=24/cowrie_20260824_142730_825575.json</span> <span class="t-value">-</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TAB: TERRAFORM ═══════════════ -->
+  <div id="tab-terraform" class="tab-panel">
+    <div class="section-label">Inspect</div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">List all deployed resources</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Shows every AWS resource Terraform manages — use this to prove IaC during a demo.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">state list</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Inspect EC2 instance details</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Shows IP, instance type, AMI, security groups — everything about the honeypot VM.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">state show</span> <span class="t-string">aws_instance.honeypot</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Inspect Lambda function state</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Show the deployed Lambda — runtime, handler, memory, IAM role, env vars.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">state show</span> <span class="t-string">aws_lambda_function.normalizer</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Show all output values</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Prints public IP, bucket name, Athena workgroup name.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">output</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Check for config drift</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Compares code vs AWS reality. If someone changed something in the console, this shows it.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">plan</span>   <span class="t-comment"># should say "No changes" if nothing drifted</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Validate Terraform syntax</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Validates HCL syntax without hitting AWS. Run before every apply.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">validate</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Update only the Security Group (e.g. IP change)</div>
+        <span class="cmd-badge badge-tf">Terraform</span>
+      </div>
+      <div class="cmd-desc">Targeted apply — only updates one resource, leaves everything else untouched.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">terraform</span> <span class="t-value">apply</span> <span class="t-flag">-target=</span><span class="t-string">"aws_security_group.honeypot"</span> <span class="t-flag">-auto-approve</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TAB: AWS CLI ═══════════════ -->
+  <div id="tab-aws" class="tab-panel">
+
+    <div class="section-label">EC2</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Check honeypot instance status</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Checks if EC2 is running and gets its current public IP (changes on restart!).</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">ec2 describe-instances</span> <span class="t-flag">`
+  --filters</span> <span class="t-string">"Name=tag:Name,Values=cowrie-honeypot"</span> <span class="t-flag">`
+  --query</span> <span class="t-string">"Reservations[*].Instances[*].{IP:PublicIpAddress,State:State.Name,ID:InstanceId}"</span></code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">CloudWatch</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">List CloudWatch log streams</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Shows log streams ordered by most recent — proves logs are flowing off the EC2.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">logs describe-log-streams</span> <span class="t-flag">`
+  --log-group-name</span> <span class="t-string">"/honeypot/cowrie"</span> <span class="t-flag">`
+  --order-by</span> <span class="t-value">LastEventTime</span> <span class="t-flag">--descending</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Fetch last 10 raw log events</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Reads the actual raw Cowrie JSON events that CloudWatch received.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">logs get-log-events</span> <span class="t-flag">`
+  --log-group-name</span> <span class="t-string">"/honeypot/cowrie"</span> <span class="t-flag">`
+  --log-stream-name</span> <span class="t-string">"i-0409575837dfaaa34"</span> <span class="t-flag">`
+  --limit</span> <span class="t-value">10</span></code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">Lambda</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Get Lambda function config</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Shows runtime, handler, memory, timeout, IAM role, environment variables.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">lambda get-function-configuration</span> <span class="t-flag">`
+  --function-name</span> <span class="t-string">CowrieLogNormalizer</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Check Lambda execution logs</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Shows Lambda's own CloudWatch logs — see invocation results and errors.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">logs filter-log-events</span> <span class="t-flag">`
+  --log-group-name</span> <span class="t-string">"/aws/lambda/CowrieLogNormalizer"</span> <span class="t-flag">`
+  --limit</span> <span class="t-value">10</span></code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">S3 Data Lake</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">List all normalized log files</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Shows every partitioned JSON file Lambda has written — the Hive structure year=/month=/day=</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">s3 ls</span> <span class="t-string">s3://cloud-siem-datalake-eager-cricket/logs/</span> <span class="t-flag">--recursive</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Stream a normalized log file to console</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Read a file directly from S3 without downloading — shows the clean normalized schema.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">s3 cp</span> <span class="t-string">`
+  s3://cloud-siem-datalake-eager-cricket/logs/year=2026/month=08/day=24/cowrie_20260824_142730_825575.json</span> <span class="t-value">-</span></code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">IAM</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Show EC2 IAM role (CloudWatch write-only)</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Demonstrates least-privilege — EC2 can ONLY write to CloudWatch, nothing else.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">iam list-attached-role-policies</span> <span class="t-flag">`
+  --role-name</span> <span class="t-string">honeypot_cloudwatch_role</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Show Lambda IAM role (S3 write-only)</div>
+        <span class="cmd-badge badge-aws">AWS CLI</span>
+      </div>
+      <div class="cmd-desc">Shows Lambda can ONLY PutObject to the data lake bucket — scoped least privilege.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">aws</span> <span class="t-value">iam list-role-policies</span> <span class="t-flag">`
+  --role-name</span> <span class="t-string">serverless_normalizer_lambda_role</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TAB: LINUX / EC2 ═══════════════ -->
+  <div id="tab-linux" class="tab-panel">
+    <div class="section-label">Connect</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">SSH into the honeypot EC2</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Admin SSH on port 22 — restricted to your IP only via Security Group.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">ssh</span> <span class="t-flag">-i</span> <span class="t-string">d:\Projects\cloud-siem-honeypot\cloudsoc.pem</span> ubuntu@44.203.20.168</code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">Cowrie Health</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Check Cowrie service status</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Verifies the honeypot is running as a systemd service — shows uptime and last logs.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">systemctl status cowrie</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Watch LIVE attacker events in real time</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Tail the live log file — you'll see real bots within minutes. Great for demo.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">tail</span> <span class="t-flag">-f</span> <span class="t-string">/home/cowrie/cowrie/var/log/cowrie/cowrie.json</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Count total events captured</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Total line count = total number of attacker events in the current log file.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">wc</span> <span class="t-flag">-l</span> <span class="t-string">/home/cowrie/cowrie/var/log/cowrie/cowrie.json</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Pretty-print the latest event</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Shows a formatted view of the most recent Cowrie event.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">tail</span> <span class="t-flag">-1</span> <span class="t-string">/home/cowrie/cowrie/var/log/cowrie/cowrie.json</span> <span class="t-pipe">|</span> <span class="t-cmd">python3</span> <span class="t-flag">-m</span> <span class="t-value">json.tool</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Quick event type breakdown</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Counts how many of each event type were captured — shows connect vs login vs command ratio.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">cat</span> <span class="t-string">/home/cowrie/cowrie/var/log/cowrie/cowrie.json</span> <span class="t-pipe">|</span> \
+  <span class="t-cmd">python3</span> <span class="t-flag">-c</span> <span class="t-string">"import sys,json; [print(json.loads(l).get('eventid','')) for l in sys.stdin]"</span> <span class="t-pipe">|</span> \
+  <span class="t-cmd">sort</span> <span class="t-pipe">|</span> <span class="t-cmd">uniq</span> <span class="t-flag">-c</span> <span class="t-pipe">|</span> <span class="t-cmd">sort</span> <span class="t-flag">-rn</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">List all rotated log files</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Shows current + archived daily log files. Each rotation = one day of attacker data.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">ls</span> <span class="t-flag">-lh</span> <span class="t-string">/home/cowrie/cowrie/var/log/cowrie/</span></code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">CloudWatch Agent</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Check CloudWatch Agent status</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">Verifies the agent is running and configured — this is what ships logs off-box.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">sudo</span> <span class="t-value">/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl</span> <span class="t-flag">-a</span> <span class="t-value">status</span></code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Generate a test attack event</div>
+        <span class="cmd-badge badge-bash">Bash</span>
+      </div>
+      <div class="cmd-desc">SSH to Cowrie from localhost — creates a full session in the logs. Use any password.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-cmd">ssh</span> <span class="t-flag">-p 2222 -o</span> <span class="t-value">StrictHostKeyChecking=no</span> <span class="t-flag">-o</span> <span class="t-value">ConnectTimeout=5</span> <span class="t-value">localhost</span>
+<span class="t-comment"># Type any password → you're inside Cowrie's fake shell
+# Run: ls, uname -a, cat /etc/passwd, then exit</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TAB: ATHENA ═══════════════ -->
+  <div id="tab-athena" class="tab-panel">
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:20px; padding:14px 16px; background:rgba(6,182,212,0.06); border:1px solid rgba(6,182,212,0.15); border-radius:10px;">
+      💡 <strong>In AWS Console → Athena:</strong> Select workgroup <code style="color:#22d3ee">cloud-siem-workgroup</code> and database <code style="color:#22d3ee">cloud_siem_db</code> before running any query.
+    </p>
+
+    <div class="section-label">Start Here</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Sanity check — latest events</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">Run this first every time. Confirms data is flowing and shows recent attacker activity.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span> timestamp, event_type, src_ip, username, password
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">WHERE</span> year <span class="t-sym">=</span> <span class="t-string">'2026'</span> <span class="t-kw">AND</span> month <span class="t-sym">=</span> <span class="t-string">'08'</span> <span class="t-kw">AND</span> day <span class="t-sym">=</span> <span class="t-string">'24'</span>
+<span class="t-kw">ORDER BY</span> timestamp <span class="t-kw">DESC</span> <span class="t-kw">LIMIT</span> <span class="t-value">20</span>;</code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">Threat Intelligence</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Top 20 attacking IPs</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">Reveals the most aggressive scanners/botnets — successes vs failures breakdown.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span>
+    src_ip,
+    <span class="t-fn">COUNT</span>(*) <span class="t-kw">AS</span> total_attempts,
+    <span class="t-fn">COUNT</span>(<span class="t-kw">CASE WHEN</span> event_type <span class="t-sym">=</span> <span class="t-string">'cowrie.login.success'</span> <span class="t-kw">THEN</span> <span class="t-value">1</span> <span class="t-kw">END</span>) <span class="t-kw">AS</span> successes,
+    <span class="t-fn">COUNT</span>(<span class="t-kw">CASE WHEN</span> event_type <span class="t-sym">=</span> <span class="t-string">'cowrie.login.failed'</span>  <span class="t-kw">THEN</span> <span class="t-value">1</span> <span class="t-kw">END</span>) <span class="t-kw">AS</span> failures,
+    <span class="t-fn">MIN</span>(timestamp) <span class="t-kw">AS</span> first_seen,
+    <span class="t-fn">MAX</span>(timestamp) <span class="t-kw">AS</span> last_seen
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">WHERE</span> event_type <span class="t-kw">IN</span> (<span class="t-string">'cowrie.login.failed'</span>, <span class="t-string">'cowrie.login.success'</span>)
+<span class="t-kw">GROUP BY</span> src_ip
+<span class="t-kw">ORDER BY</span> total_attempts <span class="t-kw">DESC LIMIT</span> <span class="t-value">20</span>;</code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Most tried credential combinations</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">Exact username/password combos attackers spray. Great for threat intel reports.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span>
+    username, password,
+    <span class="t-fn">COUNT</span>(*) <span class="t-kw">AS</span> attempts,
+    <span class="t-fn">COUNT</span>(<span class="t-kw">DISTINCT</span> src_ip) <span class="t-kw">AS</span> unique_ips
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">WHERE</span> event_type <span class="t-sym">=</span> <span class="t-string">'cowrie.login.failed'</span>
+  <span class="t-kw">AND</span> username <span class="t-kw">IS NOT NULL</span>
+<span class="t-kw">GROUP BY</span> username, password
+<span class="t-kw">ORDER BY</span> attempts <span class="t-kw">DESC LIMIT</span> <span class="t-value">20</span>;</code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Commands run after successful login</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">Post-exploitation commands — recon, crypto miners, malware droppers. The gold mine.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span> timestamp, src_ip, session_id, command
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">WHERE</span> event_type <span class="t-sym">=</span> <span class="t-string">'cowrie.command.input'</span>
+  <span class="t-kw">AND</span> command <span class="t-kw">IS NOT NULL</span>
+<span class="t-kw">ORDER BY</span> timestamp <span class="t-kw">DESC LIMIT</span> <span class="t-value">50</span>;</code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Malware download attempts</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">file_sha = SHA256 hash — look up in VirusTotal for instant malware identification.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span> timestamp, src_ip, session_id, file_url, file_sha, file_size
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">WHERE</span> event_type <span class="t-sym">=</span> <span class="t-string">'cowrie.session.file_download'</span>
+<span class="t-kw">ORDER BY</span> timestamp <span class="t-kw">DESC</span>;</code></pre>
+      </div>
+    </div>
+
+    <div class="section-label">Session Analysis</div>
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Full kill chain for one session</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">Reconstructs complete attacker timeline: connect → auth → commands → exit.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span> timestamp, event_type, src_ip, username, password, command, file_url
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">WHERE</span> session_id <span class="t-sym">=</span> <span class="t-string">'REPLACE_WITH_SESSION_ID'</span>
+<span class="t-kw">ORDER BY</span> timestamp <span class="t-kw">ASC</span>;</code></pre>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-header">
+        <div class="cmd-title">Daily attack volume trend</div>
+        <span class="cmd-badge badge-sql">SQL</span>
+      </div>
+      <div class="cmd-desc">Spot attack spikes by day — rising unique IPs = coordinated campaign or new botnet.</div>
+      <div class="code-wrap">
+        <div class="code-toolbar"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">sql</span><button class="copy-btn" onclick="copyCode(this)">📋 Copy</button></div>
+        <pre><code><span class="t-kw">SELECT</span>
+    year, month, day,
+    <span class="t-fn">COUNT</span>(*) <span class="t-kw">AS</span> total_events,
+    <span class="t-fn">COUNT</span>(<span class="t-kw">DISTINCT</span> src_ip) <span class="t-kw">AS</span> unique_ips,
+    <span class="t-fn">COUNT</span>(<span class="t-kw">CASE WHEN</span> event_type <span class="t-sym">=</span> <span class="t-string">'cowrie.login.success'</span> <span class="t-kw">THEN</span> <span class="t-value">1</span> <span class="t-kw">END</span>) <span class="t-kw">AS</span> successful_logins
+<span class="t-kw">FROM</span> cloud_siem_db.cowrie_logs
+<span class="t-kw">GROUP BY</span> year, month, day
+<span class="t-kw">ORDER BY</span> year <span class="t-kw">DESC</span>, month <span class="t-kw">DESC</span>, day <span class="t-kw">DESC</span>;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>☁️ <strong>Cloud SIEM Honeypot</strong> · AWS · Terraform · Python · Athena</p>
+    <p style="margin-top:6px;">Pipeline: <strong>Cowrie → CloudWatch → Lambda → S3 → Athena</strong></p>
+    <p style="margin-top:6px; color: var(--text-muted);">Bucket: cloud-siem-datalake-eager-cricket &nbsp;·&nbsp; Region: us-east-1 &nbsp;·&nbsp; Workgroup: cloud-siem-workgroup</p>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  function copyCode(btn) {
+    const pre = btn.closest('.code-wrap').querySelector('pre');
+    const text = pre.innerText || pre.textContent;
+    navigator.clipboard.writeText(text.trim()).then(() => {
+      btn.classList.add('copied');
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.textContent = '📋 Copy';
+      }, 2000);
+    });
+  }
+</script>
+</body>
+</html>
