@@ -1,0 +1,22 @@
+<!--
+  Paste this block INSIDE <ossec_config> ... </ossec_config> of the manager config.
+  In wazuh-docker single-node that file is:
+    single-node/config/wazuh_cluster/wazuh_manager.conf
+
+  It makes the Wazuh manager poll the CloudWatch log group every 5 minutes.
+-->
+<wodle name="aws-s3">
+  <disabled>no</disabled>
+  <interval>5m</interval>
+  <run_on_start>yes</run_on_start>
+  <skip_on_error>yes</skip_on_error>
+
+  <service type="cloudwatchlogs">
+    <!-- profile name inside /root/.aws/credentials in the manager container -->
+    <aws_profile>wazuh</aws_profile>
+    <aws_log_groups>/honeypot/cowrie</aws_log_groups>
+    <regions>us-east-1</regions>
+    <!-- backfill: first run also pulls events since this date (format YYYY-MMM-DD) -->
+    <only_logs_after>2026-SEP-01</only_logs_after>
+  </service>
+</wodle>

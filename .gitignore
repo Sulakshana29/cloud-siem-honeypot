@@ -32,3 +32,6 @@ override.tf.json
 
 # Ignore SSH Keys
 *.pem
+
+# Wazuh AWS credentials (Phase 5)
+aws-credentials

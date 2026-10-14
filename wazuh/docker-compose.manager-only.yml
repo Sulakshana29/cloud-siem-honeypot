@@ -1,0 +1,33 @@
+# Low-RAM "Stage 1" Wazuh: manager only (~600 MB RAM instead of ~4-8 GB)
+#
+# You get: AWS CloudWatch ingestion, decoders, your custom rules, wazuh-logtest,
+#          and alerts written to /var/ossec/logs/alerts/alerts.json
+# You don't get: the web dashboard (that needs the indexer + dashboard containers)
+#
+# Usage (from this wazuh/ folder):
+#   docker compose -f docker-compose.manager-only.yml up -d
+#   docker compose -f docker-compose.manager-only.yml exec wazuh.manager /var/ossec/bin/wazuh-logtest
+#
+# Filebeat inside the container will log "connection refused" errors because there
+# is no indexer. That's expected in Stage 1 and harmless.
+
+services:
+  wazuh.manager:
+    # pick the newest 4.x tag from https://hub.docker.com/r/wazuh/wazuh-manager/tags
+    image: wazuh/wazuh-manager:${WAZUH_VERSION:-4.12.0}
+    hostname: wazuh.manager
+    restart: "no"            # free mode: only runs when you start it
+    mem_limit: 1g
+    volumes:
+      - wazuh_etc:/var/ossec/etc
+      - wazuh_logs:/var/ossec/logs
+      - wazuh_queue:/var/ossec/queue
+      # your detection rules, live-mounted: edit the file, then restart the manager
+      - ./cowrie_rules.xml:/var/ossec/etc/rules/cowrie_rules.xml
+      # AWS credentials for the CloudWatch pull (file is git-ignored, never commit it)
+      - ./aws-credentials:/root/.aws/credentials:ro
+
+volumes:
+  wazuh_etc:
+  wazuh_logs:
+  wazuh_queue:

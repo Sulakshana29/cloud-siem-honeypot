@@ -3,11 +3,24 @@
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)
 ![AWS](https://img.shields.io/badge/Cloud-AWS-FF9900?logo=amazonaws)
 ![Python](https://img.shields.io/badge/Language-Python_3.10-3776AB?logo=python)
+![Wazuh](https://img.shields.io/badge/SIEM-Wazuh-3595F7)
+![MITRE ATT&CK](https://img.shields.io/badge/Mapped_to-MITRE_ATT%26CK-E3242B)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 A **fully automated, production-style cloud threat intelligence pipeline** built on AWS.
 
-A live Cowrie SSH/Telnet honeypot captures real attacker activity from the public internet. Every login attempt, command run, and malware download is automatically streamed to CloudWatch, normalized by a serverless Lambda function, stored in a partitioned S3 data lake, and queryable via Athena for threat hunting. The entire infrastructure is provisioned with Terraform — zero manual console clicks.
+A live Cowrie SSH honeypot captures real attacker activity from the public internet. Every login attempt, command run, and malware download is automatically streamed to CloudWatch, then flows down two paths:
+
+- **Hunt:** a serverless Lambda normalizes events into a partitioned S3 data lake that you can query with SQL through Athena.
+- **Detect:** a Wazuh SIEM pulls the same stream, runs custom detection rules mapped to **MITRE ATT&CK**, and raises alerts on brute force, successful intrusions, persistence attempts, cryptominers and malware downloads.
+
+All AWS infrastructure is provisioned with Terraform, with no manual console clicks.
+
+### ✨ Highlights
+- Real attacker telemetry, not simulated data
+- Least-privilege IAM for every component (EC2, Lambda, Athena analyst, Wazuh reader)
+- 12 custom Wazuh rules, including time-window brute-force correlation
+- Hive-partitioned data lake with 12 ready-made threat hunting queries
 
 ---
 
@@ -38,18 +51,19 @@ Internet (Attackers)
                  ▼
         CloudWatch Logs  /honeypot/cowrie
                  │
-                 │ Subscription Filter (push)
-                 ▼
-        Lambda: CowrieLogNormalizer
-        (decode gzip → normalize → partition)
-                 │
-                 ▼
-        S3 Data Lake:  logs/year=/month=/day=/
-                 │
-          ┌──────┴──────┐
-          ▼             ▼
-       Athena       (Phase 5: ELK)
-    Threat Hunting   Kibana SIEM
+       ┌─────────┴──────────────────────────┐
+       │ Subscription Filter (push)         │ AWS module pull (every 5 min)
+       ▼                                    │ read-only IAM user
+Lambda: CowrieLogNormalizer                 ▼
+(decode gzip → normalize → partition)   ┌──────────────────────────────┐
+       │                                │  Wazuh SIEM (Docker)         │
+       ▼                                │  JSON decoder → custom rules │
+S3 Data Lake: logs/year=/month=/day=/   │  → MITRE ATT&CK alerts       │
+       │                                │  Indexer + Dashboard         │
+       ▼                                └──────────────┬───────────────┘
+Athena + Glue                                          │ (Phase 6)
+Threat Hunting (SQL)                                   ▼
+                                            SOAR: auto-block attacker IPs
 ```
 
 ---
@@ -65,6 +79,7 @@ Internet (Attackers)
 | Processing | **AWS Lambda (Python 3.10)** | Serverless normalizer triggered by CloudWatch |
 | Storage | **AWS S3** | Encrypted, partitioned data lake |
 | Query Layer | **AWS Athena + Glue** | Serverless SQL threat hunting on the data lake |
+| SIEM | **Wazuh 4.x (Docker)** | Real-time detection rules, ATT&CK mapping, alert dashboards |
 | IAM | **AWS IAM** | Least-privilege roles for every service |
 
 ---
@@ -106,8 +121,29 @@ Internet (Attackers)
 | **Phase 2** | IAM Role (least privilege) + CloudWatch Agent | ✅ Complete |
 | **Phase 3** | Lambda log normalizer → S3 Data Lake | ✅ Complete |
 | **Phase 4** | Glue Catalog + Athena workgroup + threat hunting SQL | ✅ Complete |
-| **Phase 5** | ELK Stack SIEM with Kibana dashboards | ⏳ Planned |
-| **Phase 6** | SOAR — Lambda auto-banning attacker IPs via WAF | ⏳ Planned |
+| **Phase 5** | Wazuh SIEM: CloudWatch ingestion + custom ATT&CK-mapped detection rules ([guide](docs/phase5_wazuh_guide.md)) | 🚧 In progress |
+| **Phase 6** | SOAR: Wazuh alert → Lambda adds attacker IP to a WAF / NACL blocklist | ⏳ Planned |
+| **Phase 7** | Threat intel enrichment: AbuseIPDB / GreyNoise for IPs, VirusTotal for malware hashes | ⏳ Planned |
+| **Phase 8** | Hardening & CI: egress lockdown, `tfsec` + `terraform validate` in GitHub Actions, Lambda unit tests | ⏳ Planned |
+
+---
+
+## 🚨 Detection Rules (Wazuh)
+
+Rules live in [`wazuh/cowrie_rules.xml`](wazuh/cowrie_rules.xml).
+
+| Rule ID | Level | Detects | MITRE ATT&CK |
+|---|---|---|---|
+| 100102 | 5 | Failed login | T1110 Brute Force |
+| 100103 | 10 | 10+ failed logins from one IP in 2 min | T1110.001 Password Guessing |
+| 100104 | 10 | Successful login | T1078 Valid Accounts |
+| 100110 | 6 | Shell command executed | T1059.004 Unix Shell |
+| 100111 | 7 | System discovery (`uname`, `nproc`, ...) | T1082 System Information Discovery |
+| 100112 | 12 | SSH key implant (`authorized_keys`) | T1098.004 SSH Authorized Keys |
+| 100113 | 12 | Cron persistence | T1053.003 Cron |
+| 100114 | 12 | Cryptominer deployment | T1496 Resource Hijacking |
+| 100115 | 10 | `wget` / `curl` / `tftp` download command | T1105 Ingress Tool Transfer |
+| 100120 | 13 | Malware file downloaded | T1105 Ingress Tool Transfer |
 
 ---
 
@@ -236,7 +272,16 @@ In AWS Console:
 - **S3** → `cloud-siem-datalake-*` → check for files under `logs/`
 - **Athena** → select workgroup `cloud-siem-workgroup`, database `cloud_siem_db` → run queries
 
-### 5. Tear down (avoid AWS charges)
+### 5. (Optional) Connect the Wazuh SIEM
+Follow [`docs/phase5_wazuh_guide.md`](docs/phase5_wazuh_guide.md). The short version:
+```bash
+terraform output wazuh_access_key_id
+terraform output -raw wazuh_secret_access_key
+# run wazuh-docker single-node, mount the credentials, add wazuh/aws_cloudwatch_wodle.xml
+# to the manager config, then copy in wazuh/cowrie_rules.xml
+```
+
+### 6. Tear down (avoid AWS charges)
 ```bash
 terraform destroy
 ```
@@ -252,6 +297,8 @@ terraform destroy
 | Lambda invocations | Within free tier |
 | CloudWatch ingestion | Within free tier for small log volumes |
 | Athena queries | $5 per TB scanned (honeypot logs = pennies) |
+| Wazuh polling CloudWatch | GetLogEvents API calls: pennies |
+| Wazuh itself | **$0**: runs locally in Docker (on AWS it would need a t3.large, ~$60/month) |
 | **Total** | **~$8–10/month** |
 
 ---
@@ -264,6 +311,7 @@ cloud-siem-honeypot/
 │   ├── main.tf          # VPC, EC2, Security Groups, IAM, CloudWatch
 │   ├── phase3.tf        # S3 Data Lake, Lambda normalizer
 │   ├── phase4.tf        # Glue Catalog, Athena workgroup, IAM analyst policy
+│   ├── phase5.tf        # Read-only IAM user for Wazuh CloudWatch ingestion
 │   ├── variables.tf     # Input variables
 │   └── outputs.tf       # EC2 public IP, bucket name
 ├── scripts/
@@ -271,8 +319,13 @@ cloud-siem-honeypot/
 │   ├── setup_cloudwatch.sh  # CloudWatch Agent configuration
 │   ├── lambda_function.py   # Serverless log normalizer (deployed to Lambda)
 │   └── normalize_logs.py    # Local CLI normalizer for testing
+├── wazuh/
+│   ├── cowrie_rules.xml         # Custom detection rules (MITRE ATT&CK mapped)
+│   ├── aws_cloudwatch_wodle.xml # Wazuh AWS module config for CloudWatch pull
+│   └── docker-compose.manager-only.yml # Low-RAM (~0.6 GB) Wazuh for learning rules
 └── docs/
     ├── architecture.md      # Detailed architecture with Mermaid diagram
     ├── threat-model.md      # STRIDE threat model
-    └── athena_queries.sql   # 12 ready-to-run threat hunting queries
+    ├── athena_queries.sql   # 12 ready-to-run threat hunting queries
+    └── phase5_wazuh_guide.md # Step-by-step Wazuh SIEM integration guide
 ```
