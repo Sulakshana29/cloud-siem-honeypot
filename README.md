@@ -86,13 +86,8 @@ Threat Hunting (SQL)                                   ▼
 
 ## 📸 Screenshots
 
-### 🍯 Cowrie Live — Real Attackers Captured
-![Cowrie live logs](screenshots/cloudwatch%20raw%20logs.png)
-
-### ☁️ CloudWatch — Raw Logs Streamed Off-Box in Real Time
 ![CloudWatch log stream](screenshots/Screenshot%202026-09-17%20162716.png)
 
-### ⚡ CloudWatch Agent — Shipping Logs to AWS
 ![CloudWatch Agent](screenshots/Screenshot%202026-09-17%20162750.png)
 
 ### 🪣 S3 Data Lake — Hive-Partitioned Normalized Events
